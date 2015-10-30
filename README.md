@@ -120,8 +120,8 @@ multiclient.py:
     Operations should be relatively fast.  We will give 1 minute for all 1,000
     operations, requiring your `multiclient.py` to sustain 17 ops/sec.
 
-===============================================================================
 Initial documentation:
+===============================================================================
 Email is the backbone of modern-day communication.  In this assignment you will
 be building a multi-threaded mail server that supports basic features of the
 SMTP mail transfer protocol.  Along the way you'll get a taste of
