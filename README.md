@@ -28,7 +28,6 @@ Steps:
  - A client may send multiple RCPT TO commands during a single message
    + This causes a message to be delivered once, assigned a single message ID,
      appear once in the mailbox, and have multiple "To:" lines
-   + *IS THE ABOVE ACCEPTABLE BEHAVIOR?*
  - Test your server by connecting to it with a telnet client
    + Run your server on a linux machine, and on the same machine run "telnet
      localhost *portnum*"
