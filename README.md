@@ -28,7 +28,6 @@ Steps:
  - A client may send multiple RCPT TO commands during a single message
    + This causes a message to be delivered once, assigned a single message ID,
      appear once in the mailbox, and have multiple "To:" lines
-   + *IS THE ABOVE ACCEPTABLE BEHAVIOR?*
  - Test your server by connecting to it with a telnet client
    + Run your server on a linux machine, and on the same machine run "telnet
      localhost *portnum*"
@@ -120,8 +119,8 @@ multiclient.py:
     Operations should be relatively fast.  We will give 1 minute for all 1,000
     operations, requiring your `multiclient.py` to sustain 17 ops/sec.
 
-===============================================================================
 Initial documentation:
+===============================================================================
 Email is the backbone of modern-day communication.  In this assignment you will
 be building a multi-threaded mail server that supports basic features of the
 SMTP mail transfer protocol.  Along the way you'll get a taste of
