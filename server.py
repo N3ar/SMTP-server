@@ -3,8 +3,8 @@
 import getopt
 import socket
 import sys
-#import threading
 from threading import Thread, Lock, Condition
+import string
 
 # Don't change 'host' and 'port' values below.  If you do, we will not be able to contact 
 # your server when grading.  Instead, you should provide command-line arguments to this
@@ -49,7 +49,7 @@ class ThreadPool:
         BackupHandler()
 
     # If socket not in use, assign clientsocket
-    def assignThread(self, clientsocket):
+    def assign_thread(self, clientsocket):
         # TODO why doesn't it make me redefine workerLock in this method after
         # TODO made me define socketInUse?
         global socketInUse
@@ -75,19 +75,20 @@ class SMTPHandler(Thread):
     def run(self):
         global socketInUse
 
-        with workerLock:
-            # wait until socket assigned from client request
-            while socketInUse is None:
-                workerReady.wait()
-            # Initialize a ConnectionHandler for this SMTP connection
-            successfulConnection = ConnectionHandler(socketInUse)
-            socketInUse = None
-            workerDone.notify()
+        while True:
+            with workerLock:
+                # wait until socket assigned from client request
+                while socketInUse is None:
+                    workerReady.wait()
+                # Initialize a ConnectionHandler for this SMTP connection
+                successful_connection = ConnectionHandler(socketInUse)
+                socketInUse = None
+                workerDone.notify()
 
-        # Handle connection outside of lock
-        # Efficient and no global vars modified
-        # TODO Are my assumptions correct? Or should this happen inside the lock because the socket is busy?
-        successfulConnection.handle()
+            # Handle connection outside of lock
+            # Efficient and no global vars modified
+            # TODO Are my assumptions correct? Or should this happen inside the lock because the socket is busy?
+            successful_connection.handle()
 
 
 # performs mail server backup
@@ -120,10 +121,47 @@ class ConnectionHandler:
         global numMessages
 
         self.socket = socket
-        #self.
+        self.raw_message = ''
+        self.rec_message = ''
+        self.recipients = []
+        self.message_contents = [None, None, self.recipients, None]
+        self.client_state = ['HELO', 'MAIL FROM:', 'RCPT TO:', 'DATA']
+        self.phase = 0
+        # May want to track errors
 
     def handle(self):
         # Acknowledge message
+        self.send(self.socket, '220 jfw222 SMTP CS4410MP3')
+        # TEST PRINT #
+        print('server: 220 jfw222 SMTP CS4410MP3')
+
+        #
+        while True:
+            self.socket.settimeout(10)
+            # TODO I have no idea how many bytes I should be ready to take
+            self.raw_message += self.socket.recv(500)
+            self.socket.settimeout(None)
+            self.parse_msg(self, self.raw_message)
+
+
+    # Force byte formatting and send
+    def send(self, string):
+        self.socket.send(string.encode('utf-8') + '\r\n')
+
+    # Parse received message
+    # TODO THIS IS WHERE I LEFT OFF - Needs to be updated with better string parsing.
+    def parse_msg(self, raw):
+        fragments = string.split(raw, '\r\n')
+        raw = fragments[len(fragments) - 1]
+        for i in range(len(fragments) - 1):
+            if self.phase < 4:
+                email = fragments[i] + '\r\n'
+                cmd = self.command_errors(email)
+
+
+    # Determine if there are command errors
+    def command_errors(self, command): #stuff
+
 
 # close main server loop
 def serverloop():
