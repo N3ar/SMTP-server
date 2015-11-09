@@ -123,7 +123,7 @@ class ConnectionHandler:
         #self.
 
     def handle(self):
-        # Acknowledge
+        # Acknowledge message
 
 # close main server loop
 def serverloop():
