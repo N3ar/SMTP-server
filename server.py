@@ -125,27 +125,28 @@ class ConnectionHandler:
         self.rec_message = ''
         self.recipients = []
         self.message_contents = [None, None, self.recipients, None]
-        self.client_stage = ['HELO', 'MAIL FROM:', 'RCPT TO:', 'DATA']
+        self.client_stage = ['HELO', 'MAIL FROM', 'RCPT TO', 'DATA']
         self.delimiters = [' ', ':', ':', '']
         self.phase = 0
         # May want to track errors
 
+    # Handle individual connection
     def handle(self):
         # Acknowledge message
         self.send(self.socket, '220 jfw222 SMTP CS4410MP3')
         # TEST PRINT #
         print('server: 220 jfw222 SMTP CS4410MP3')
 
-        #
+        # Handle based on phase
         while self.phase is not None:
             if self.phase is 0:
-                self.helo_handler(self)
+                self.helo_handler()
             elif self.phase is 1:
-                self.from_handler(self)
+                self.from_handler()
             elif self.phase is 2:
-                self.to_handler(self)
+                self.to_handler()
             elif self.phase is 3:
-                self.data_handler(self)
+                self.data_handler()
         self.socket.close()
 
     # Force byte formatting and send
@@ -155,7 +156,7 @@ class ConnectionHandler:
     # Parse received message
     def parse_msg(self):
         while True:
-            if self.raw_message.find('\r\n') is -1:
+            if self.raw_message.find('\r\n') is not -1:
                 break
 
             self.socket.settimeout(10)
@@ -168,7 +169,7 @@ class ConnectionHandler:
         return command
 
     # Determine if there are command errors
-    def command_errors(self, stage):
+    def command_errors(self, stage, brkpnt, content):
 
         # HELO Errors
         if self.phase is 0:
@@ -177,25 +178,96 @@ class ConnectionHandler:
                 self.send('501 Syntax: HELO yourhostname')
                 # TODO REMOVE TEST #
                 print('server: 501 Syntax: HELO yourhostname')
-                return
 
             # Incorrect, but valid, command
             elif stage is self.client_stage[1] or stage is self.client_stage[2] or stage is self.client_stage[3]:
                 self.send('503 Error: need HELO command')
                 # TODO REMOVE TEST #
                 print('server: 503 Error: need HELO command')
-                return
 
-            # Invalid command/ catchall
-            self.send('500 Error: command not recognized')
-            # TODO REMOVE TEST #
-            print('server: 500 Error: command not recognized')
+            # Invalid command/ catch all
+            else:
+                self.send('500 Error: command not recognized')
+                # TODO REMOVE TEST #
+                print('server: 500 Error: command not recognized')
             return
 
         # MAIL FROM Errors
         elif self.phase is 1:
-            if stage is self.client_stage[self.phase]:
-                # TODO CONTINUE HERE
+            # Correct command, valid breakpoint, bad email addr
+            if stage is self.client_stage[self.phase] and brkpnt is not -1:
+                self.send('555 <' + content + '>: Sender address rejected')
+                # TODO REMOVE TEST #
+                print('server: 555 <' + content + '>: Sender address rejected')
+
+            # Correct command, invalid breakpoint
+            elif stage is self.client_stage[self.phase]:
+                self.send('501 Syntax: MAIL FROM: email@host.com')
+                # TODO REMOVE TEST #
+                print('server: 501 Syntax: MAIL FROM: email@host.com')
+
+            # Incorrect command, HELO received
+            elif stage is self.client_stage[0]:
+                self.send('503 Error: duplicate HELO')
+                # TODO REMOVE TEST #
+                print('server: 503 Error: duplicate HELO')
+
+            # Incorrect command, one of the other 2 received
+            elif stage is self.client_stage[2] or stage is self.client_stage[3]:
+                self.send('503 Error: need MAIL FROM command')
+                # TODO REMOVE TEST #
+                print('server: 503 Error: need MAIL FROM command')
+
+            # Invalid command, catch all
+            else:
+                self.send('500 Error: command not recognized')
+                # TODO REMOVE TEST #
+                print('server: 500 Error: command not recognized')
+            return
+
+        # RCPT TO Errors
+        elif self.phase is 2:
+            # Correct command, valid breakpoint, bad email addr
+            if stage is self.client_stage[self.phase] and brkpnt is not -1:
+                self.send('555 <' + content + '>: Sender address rejected')
+                # TODO REMOVE TEST #
+                print('server: 555 <' + content + '>: Sender address rejected')
+
+            # Correct command, invalid breakpoint
+            elif stage is self.client_stage[self.phase]:
+                self.send('501 Syntax: MAIL FROM: email@host.com')
+                # TODO REMOVE TEST #
+                print('server: 501 Syntax: MAIL FROM: email@host.com')
+
+            # Incorrect command, HELO received
+            elif stage is self.client_stage[0]:
+                self.send('503 Error: duplicate HELO')
+                # TODO REMOVE TEST #
+                print('server: 503 Error: duplicate HELO')
+
+            # Incorrect command, MAIL FROM received
+            elif stage is self.client_stage[1]:
+                self.send('503 Error: nested MAIL command')
+                # TODO REMOVE TEST #
+                print('server: 503 Error: nested MAIL command')
+
+            # Incorrect command, one of the other 2 received
+            elif stage is self.client_stage[3]:
+                self.send('503 Error: need MAIL FROM command')
+                # TODO REMOVE TEST #
+                print('server: 503 Error: need MAIL FROM command')
+
+            # Invalid command, catch all
+            else:
+                self.send('500 Error: command not recognized')
+                # TODO REMOVE TEST #
+                print('server: 500 Error: command not recognized')
+            return
+
+        # DATA errors
+        elif self.phase is 3:
+            #
+
 
 
 
@@ -217,7 +289,7 @@ class ConnectionHandler:
         print('client: ' + self.rec_message)
 
         # Correct command
-        if stage is self.client_stage[self.phase] and brkpnt is not -1 and content.find(self.delimiters[self.phase]) is -1:
+        if stage is self.client_stage[self.phase] and brkpnt is not -1 and content.find(' ') is -1:
             self.message_contents[self.phase] = content
             self.phase += 1
             self.send('250 jfw222')
@@ -225,24 +297,95 @@ class ConnectionHandler:
             print('server: 250 jfw222')
 
         else:
-            self.command_errors(stage)
+            self.command_errors(stage, brkpnt, content)
+
+    # Expecting a MAIL FROM
+    def from_handler(self):
+        self.rec_message = self.parse_msg()
+
+        # Ensure received message has contents
+        if self.rec_message is None:
+            print('error handle')
+            return
+
+        # Process parts of message
+        self.rec_message = self.rec_message.strip()
+        brkpnt = self.rec_message.find(self.delimiters[self.phase])
+        stage = string.upper(self.rec_message[0:brkpnt].strip())
+        content = self.rec_message[brkpnt:].strip()
+        # TODO REMOVE TEST #
+        print('client: ' + self.rec_message)
+
+        # Correct command
+        if content is not None and stage is self.client_stage[self.phase] and brkpnt is not -1 and content.find(' ') is -1:
+            self.message_contents[self.phase] = content
+            self.phase += 1
+            self.send('250 OK')
+            # TODO REMOVE TEST #
+            print('server: 250 OK')
+
+        else:
+            self.command_errors(stage, brkpnt, content)
+
+    # Expecting a RCPT TO
+    def to_handler(self):
+        self.rec_message = self.parse_msg()
+
+        # Ensure received message has contents
+        if self.rec_message is None:
+            print('error handle')
+            return
+
+        # Process parts of message
+        self.rec_message = self.rec_message.strip()
+        brkpnt = self.rec_message.find(self.delimiters[self.phase])
+        stage = string.upper(self.rec_message[0:brkpnt].strip())
+        content = self.rec_message[brkpnt:].strip()
+        # TODO REMOVE TEST #
+        print('client: ' + self.rec_message)
+
+        # Correct command
+        if content is not None and stage is self.client_stage[self.phase] and brkpnt is not -1 and content.find(' ') is -1:
+            self.message_contents[self.phase] = content
+            self.phase += 1
+            self.send('250 OK')
+            # TODO REMOVE TEST #
+            print('server: 250 OK')
+
+        else:
+            self.command_errors(stage, brkpnt, content)
+
+    # Expecting a DATA:
+    def data_handler(self):
+        # Handle case for multiple recipients
+        if self.raw_message.find('RCPT TO') is not -1:
+            self.phase -= 1
+            self.to_handler()
+            return
+
+        # Print
+        self.send('354 End data with <CR><LF>.<CR><LF>')
+        print('server: 354 End data with <CR><LF>.<CR><LF>')
+
+        self.rec_message = self.parse_msg()
+
+        # Ensure received message has contents
+        if self.rec_message is None:
+            print('error handle')
+            return
+
+        # Check to see if only content is period
 
 
 
 
-
-
-
-
-
-
-
-        fragments = string.split(raw, '\r\n')
-        raw = fragments[len(fragments) - 1]
-        for i in range(len(fragments) - 1):
-            if self.phase < 4:
-                email = fragments[i] + '\r\n'
-                cmd = self.command_errors(email)
+        # Process parts of message
+        self.rec_message = self.rec_message.strip()
+        brkpnt = self.rec_message.find(self.delimiters[self.phase])
+        stage = string.upper(self.rec_message[0:brkpnt].strip())
+        content = self.rec_message[brkpnt:].strip()
+        # TODO REMOVE TEST #
+        print('client: ' + self.rec_message)
 
 
 
