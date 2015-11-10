@@ -125,7 +125,8 @@ class ConnectionHandler:
         self.rec_message = ''
         self.recipients = []
         self.message_contents = [None, None, self.recipients, None]
-        self.client_state = ['HELO', 'MAIL FROM:', 'RCPT TO:', 'DATA']
+        self.client_stage = ['HELO', 'MAIL FROM:', 'RCPT TO:', 'DATA']
+        self.delimiters = [' ', ':', ':', '']
         self.phase = 0
         # May want to track errors
 
@@ -136,21 +137,106 @@ class ConnectionHandler:
         print('server: 220 jfw222 SMTP CS4410MP3')
 
         #
-        while True:
-            self.socket.settimeout(10)
-            # TODO I have no idea how many bytes I should be ready to take
-            self.raw_message += self.socket.recv(500)
-            self.socket.settimeout(None)
-            self.parse_msg(self, self.raw_message)
-
+        while self.phase is not None:
+            if self.phase is 0:
+                self.helo_handler(self)
+            elif self.phase is 1:
+                self.from_handler(self)
+            elif self.phase is 2:
+                self.to_handler(self)
+            elif self.phase is 3:
+                self.data_handler(self)
+        self.socket.close()
 
     # Force byte formatting and send
     def send(self, string):
         self.socket.send(string.encode('utf-8') + '\r\n')
 
     # Parse received message
-    # TODO THIS IS WHERE I LEFT OFF - Needs to be updated with better string parsing.
-    def parse_msg(self, raw):
+    def parse_msg(self):
+        while True:
+            if self.raw_message.find('\r\n') is -1:
+                break
+
+            self.socket.settimeout(10)
+            self.raw_message += self.socket.recv(500)
+            self.socket.settimeout(None)
+
+        command = self.raw_message[0 : self.raw_message.find('\r\n')]
+        self.raw_message = self.raw_message[self.raw_message.find('\r\n')+2 : ]
+        print(self.raw_message)
+        return command
+
+    # Determine if there are command errors
+    def command_errors(self, stage):
+
+        # HELO Errors
+        if self.phase is 0:
+            # Correct command, some other syntax error
+            if stage is self.client_stage[self.phase]:
+                self.send('501 Syntax: HELO yourhostname')
+                # TODO REMOVE TEST #
+                print('server: 501 Syntax: HELO yourhostname')
+                return
+
+            # Incorrect, but valid, command
+            elif stage is self.client_stage[1] or stage is self.client_stage[2] or stage is self.client_stage[3]:
+                self.send('503 Error: need HELO command')
+                # TODO REMOVE TEST #
+                print('server: 503 Error: need HELO command')
+                return
+
+            # Invalid command/ catchall
+            self.send('500 Error: command not recognized')
+            # TODO REMOVE TEST #
+            print('server: 500 Error: command not recognized')
+            return
+
+        # MAIL FROM Errors
+        elif self.phase is 1:
+            if stage is self.client_stage[self.phase]:
+                # TODO CONTINUE HERE
+
+
+
+    # Expecting a HELO
+    def helo_handler(self):
+        self.rec_message = self.parse_msg()
+
+        # Ensure received message has contents
+        if self.rec_message is None:
+            print('error handle')
+            return
+
+        # Process parts of message
+        self.rec_message = self.rec_message.strip()
+        brkpnt = self.rec_message.find(self.delimiters[self.phase])
+        stage = string.upper(self.rec_message[0:brkpnt].strip())
+        content = self.rec_message[brkpnt:].strip()
+        # TODO REMOVE TEST #
+        print('client: ' + self.rec_message)
+
+        # Correct command
+        if stage is self.client_stage[self.phase] and brkpnt is not -1 and content.find(self.delimiters[self.phase]) is -1:
+            self.message_contents[self.phase] = content
+            self.phase += 1
+            self.send('250 jfw222')
+            # TODO REMOVE TEST #
+            print('server: 250 jfw222')
+
+        else:
+            self.command_errors(stage)
+
+
+
+
+
+
+
+
+
+
+
         fragments = string.split(raw, '\r\n')
         raw = fragments[len(fragments) - 1]
         for i in range(len(fragments) - 1):
@@ -158,9 +244,6 @@ class ConnectionHandler:
                 email = fragments[i] + '\r\n'
                 cmd = self.command_errors(email)
 
-
-    # Determine if there are command errors
-    def command_errors(self, command): #stuff
 
 
 # close main server loop
