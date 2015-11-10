@@ -5,6 +5,7 @@ import socket
 import sys
 from threading import Thread, Lock, Condition
 import string
+import shutil
 
 # Don't change 'host' and 'port' values below.  If you do, we will not be able to contact 
 # your server when grading.  Instead, you should provide command-line arguments to this
@@ -44,7 +45,7 @@ class ThreadPool:
         self.numThreads = POOL_THREADS
 
     # Spawn 32 SMTPHandler Threads
-    def run(self):
+    # TODO Initially I had this as a run method and it failed... I don't know why
         with workerLock:
             for i in range(self.numThreads):
                 SMTPHandler()
@@ -59,7 +60,6 @@ class ThreadPool:
             while socketInUse is not None:
                 workerDone.wait()
             socketInUse = clientsocket
-            print(socketInUse)
             workerReady.notify()
 
 
@@ -67,7 +67,6 @@ class ThreadPool:
 class SMTPHandler(Thread):
     def __init__(self):
         global workerLock
-        # TODO I can't explain why this doesn't work here but did work in the threadpool run function
         global socketInUse
 
         Thread.__init__(self)
@@ -75,7 +74,8 @@ class SMTPHandler(Thread):
 
     # handle successful SMTP connections
     def run(self):
-        #global socketInUse
+        global workerLock
+        global socketInUse
 
         while True:
             with workerLock:
@@ -83,14 +83,10 @@ class SMTPHandler(Thread):
                 while socketInUse is None:
                     workerReady.wait()
                 # Initialize a ConnectionHandler for this SMTP connection
-                print('1) ' + socketInUse)
                 successful_connection = ConnectionHandler(socketInUse)
                 socketInUse = None
                 workerDone.notify()
-
             # Handle connection outside of lock
-            # Efficient and no global vars modified
-            # TODO Are my assumptions correct? Or should this happen inside the lock because the socket is busy?
             successful_connection.handle()
 
 
@@ -101,20 +97,29 @@ class BackupHandler(Thread):
         global backupLock
         global backupStart
         global mailDelivery
+        global backupInProg
 
         Thread.__init__(self)
         self.start()
 
     def run(self):
+        global backupInProg
         # Thread delivering message will wait for the backup process to complete and visa versa
-        # NEED LOCK ON THIS AND DELIVERY
         while True:
             with backupLock:
-                while numMessages is 0 or numMessages % 32 is not 0:
+                while (numMessages == 0 or numMessages % 32 != 0) or backupInProg == 0:
                     backupStart.wait()
-                # copy mailbox
+                # copy mailbox:
+                # http://stackoverflow.com/questions/123198/how-do-i-copy-a-file-in-python
+                backup_filename = './' + FILE_NAME + '.' + str(numMessages-31) + '-' + str(numMessages)
+                shutil.copyfile('./' + FILE_NAME, backup_filename)
                 # clear "mailbox"
+                clearedBox = open(FILE_NAME, 'w')
+                clearedBox.write('')
+                clearedBox.close()
+
                 print('Backup success, mailbox is empty') # TEST STATEMENT
+                backupInProg = 0
                 mailDelivery.notify()
 
 
@@ -130,174 +135,153 @@ class ConnectionHandler:
         self.data = []
         self.message_contents = [None, None, self.recipients, self.data]
         self.client_stage = ['HELO', 'MAIL FROM', 'RCPT TO', 'DATA']
-        self.delimiters = [' ', ':', ':', '']
+        self.delimiters = [' ', ':', ':', ' ']
         self.phase = 0
         # May want to track errors
 
     # Handle individual connection
     def handle(self):
         # Acknowledge message
-        self.send(self.socket, '220 jfw222 SMTP CS4410MP3')
+        self.send('220 jfw222 SMTP CS4410MP3')
         # TEST PRINT #
         print('server: 220 jfw222 SMTP CS4410MP3')
 
         # Handle based on phase
         while self.phase is not None:
-            if self.phase is 0:
+            if self.phase == 0:
                 self.helo_handler()
-            elif self.phase is 1:
+            elif self.phase == 1:
                 self.from_handler()
-            elif self.phase is 2:
+            elif self.phase == 2:
                 self.to_handler()
-            elif self.phase is 3:
+            elif self.phase == 3:
                 self.data_handler()
         self.socket.close()
 
     # Force byte formatting and send
-    def send(self, string):
-        self.socket.send(string.encode('utf-8') + '\r\n')
+    def send(self, mailstring):
+        self.socket.send(mailstring.encode('utf-8') + '\r\n')
 
     # Parse received message
     def parse_msg(self):
         self.socket.settimeout(10)
         while True:
-            if self.raw_message.find('\r\n') is not -1:
+            if self.raw_message.find('\r\n') != -1:
                 break
             self.raw_message += self.socket.recv(500)
         self.socket.settimeout(None)
 
         command = self.raw_message[0:self.raw_message.find('\r\n')]
         self.raw_message = self.raw_message[self.raw_message.find('\r\n')+2:]
-        print(self.raw_message)
         return command
 
     # Determine if there are command errors
     def command_errors(self, stage, brkpnt, content):
-
         # HELO Errors
-        if self.phase is 0:
+        if self.phase == 0:
             # Correct command, some other syntax error
-            if stage is self.client_stage[self.phase]:
+            if stage == self.client_stage[self.phase]:
                 self.send('501 Syntax: HELO yourhostname')
                 # TODO REMOVE TEST #
                 print('server: 501 Syntax: HELO yourhostname')
-
             # Incorrect, but valid, command
-            elif stage is self.client_stage[1] or stage is self.client_stage[2] or stage is self.client_stage[3]:
+            elif stage == self.client_stage[1] or stage == self.client_stage[2] or stage == self.client_stage[3]:
                 self.send('503 Error: need HELO command')
                 # TODO REMOVE TEST #
                 print('server: 503 Error: need HELO command')
-
             # Invalid command/ catch all
             else:
                 self.send('500 Error: command not recognized')
                 # TODO REMOVE TEST #
                 print('server: 500 Error: command not recognized')
             return
-
         # MAIL FROM Errors
-        elif self.phase is 1:
+        elif self.phase == 1:
             # Correct command, valid breakpoint, bad email addr
-            if stage is self.client_stage[self.phase] and brkpnt is not -1:
+            if stage == self.client_stage[self.phase] and brkpnt != -1:
                 self.send('555 <' + content + '>: Sender address rejected')
                 # TODO REMOVE TEST #
                 print('server: 555 <' + content + '>: Sender address rejected')
-
             # Correct command, invalid breakpoint
-            elif stage is self.client_stage[self.phase]:
+            elif stage == self.client_stage[self.phase]:
                 self.send('501 Syntax: MAIL FROM: email@host.com')
                 # TODO REMOVE TEST #
                 print('server: 501 Syntax: MAIL FROM: email@host.com')
-
             # Incorrect command, HELO received
-            elif stage is self.client_stage[0]:
+            elif stage == self.client_stage[0]:
                 self.send('503 Error: duplicate HELO')
                 # TODO REMOVE TEST #
                 print('server: 503 Error: duplicate HELO')
-
             # Incorrect command, one of the other 2 received
-            elif stage is self.client_stage[2] or stage is self.client_stage[3]:
+            elif stage == self.client_stage[2] or stage == self.client_stage[3]:
                 self.send('503 Error: need MAIL FROM command')
                 # TODO REMOVE TEST #
                 print('server: 503 Error: need MAIL FROM command')
-
             # Invalid command, catch all
             else:
                 self.send('500 Error: command not recognized')
                 # TODO REMOVE TEST #
                 print('server: 500 Error: command not recognized')
             return
-
         # RCPT TO Errors
-        elif self.phase is 2:
+        elif self.phase == 2:
             # Correct command, valid breakpoint, bad email addr
-            if stage is self.client_stage[self.phase] and brkpnt is not -1:
+            if stage == self.client_stage[self.phase] and brkpnt != -1:
                 self.send('555 <' + content + '>: Sender address rejected')
                 # TODO REMOVE TEST #
                 print('server: 555 <' + content + '>: Sender address rejected')
-
             # Correct command, invalid breakpoint
-            elif stage is self.client_stage[self.phase]:
+            elif stage == self.client_stage[self.phase]:
                 self.send('501 Syntax: RCPT TO: email@host.com')
                 # TODO REMOVE TEST #
                 print('server: 501 Syntax: RCPT TO: email@host.com')
-
             # Incorrect command, HELO received
-            elif stage is self.client_stage[0]:
+            elif stage == self.client_stage[0]:
                 self.send('503 Error: duplicate HELO')
                 # TODO REMOVE TEST #
                 print('server: 503 Error: duplicate HELO')
-
             # Incorrect command, MAIL FROM received
-            elif stage is self.client_stage[1]:
+            elif stage == self.client_stage[1]:
                 self.send('503 Error: nested MAIL command')
                 # TODO REMOVE TEST #
                 print('server: 503 Error: nested MAIL command')
-
             # Incorrect command, one of the other 2 received
-            elif stage is self.client_stage[3]:
+            elif stage == self.client_stage[3]:
                 self.send('503 Error: need MAIL FROM command')
                 # TODO REMOVE TEST #
                 print('server: 503 Error: need MAIL FROM command')
-
             # Invalid command, catch all
             else:
                 self.send('500 Error: command not recognized')
                 # TODO REMOVE TEST #
                 print('server: 500 Error: command not recognized')
             return
-
         # DATA errors
-        elif self.phase is 3:
-            if stage is self.client_stage[self.phase] and brkpnt is not -1:
+        elif self.phase == 3:
+            if stage == self.client_stage[self.phase] and brkpnt != -1:
                 self.send('555 <' + content + '>: Sender address rejected')
                 # TODO REMOVE TEST #
                 print('server: 555 <' + content + '>: Sender address rejected')
-
             # Correct command, invalid breakpoint
-            elif stage is self.client_stage[self.phase]:
+            elif stage == self.client_stage[self.phase]:
                 self.send('501 Syntax: MAIL FROM: email@host.com')
                 # TODO REMOVE TEST #
                 print('server: 501 Syntax: MAIL FROM: email@host.com')
-
             # Incorrect command, HELO received
-            elif stage is self.client_stage[0]:
+            elif stage == self.client_stage[0]:
                 self.send('503 Error: duplicate HELO')
                 # TODO REMOVE TEST #
                 print('server: 503 Error: duplicate HELO')
-
             # Incorrect command, MAIL FROM received
-            elif stage is self.client_stage[1]:
+            elif stage == self.client_stage[1]:
                 self.send('503 Error: nested MAIL command')
                 # TODO REMOVE TEST #
                 print('server: 503 Error: nested MAIL command')
-
             # Incorrect command, one of the other 2 received
-            elif stage is self.client_stage[2]:
+            elif stage == self.client_stage[2]:
                 self.send('503 Error: OH no')
                 # TODO REMOVE TEST #
                 print('server: WTF Error: this shouldnt happen')
-
             # Invalid command, catch all
             else:
                 self.send('500 Error: command not recognized')
@@ -323,7 +307,7 @@ class ConnectionHandler:
         print('client: ' + self.rec_message)
 
         # Correct command
-        if stage is self.client_stage[self.phase] and brkpnt is not -1 and content.find(' ') is -1:
+        if stage == self.client_stage[self.phase] and brkpnt != -1 and content.find(' ') == -1:
             self.message_contents[self.phase] = content
             self.phase += 1
             self.send('250 jfw222')
@@ -346,12 +330,12 @@ class ConnectionHandler:
         self.rec_message = self.rec_message.strip()
         brkpnt = self.rec_message.find(self.delimiters[self.phase])
         stage = string.upper(self.rec_message[0:brkpnt].strip())
-        content = self.rec_message[brkpnt:].strip()
+        content = self.rec_message[brkpnt+1:].strip()
         # TODO REMOVE TEST #
         print('client: ' + self.rec_message)
 
         # Correct command
-        if content is not None and stage is self.client_stage[self.phase] and brkpnt is not -1 and content.find(' ') is -1:
+        if content is not None and stage == self.client_stage[self.phase] and brkpnt != -1 and content.find(self.delimiters[self.phase]) == -1:
             self.message_contents[self.phase] = content
             self.phase += 1
             self.send('250 OK')
@@ -374,12 +358,12 @@ class ConnectionHandler:
         self.rec_message = self.rec_message.strip()
         brkpnt = self.rec_message.find(self.delimiters[self.phase])
         stage = string.upper(self.rec_message[0:brkpnt].strip())
-        content = self.rec_message[brkpnt:].strip()
+        content = self.rec_message[brkpnt+1:].strip()
         # TODO REMOVE TEST #
         print('client: ' + self.rec_message)
 
         # Correct command
-        if content is not None and stage is self.client_stage[self.phase] and brkpnt is not -1 and content.find(' ') is -1:
+        if content is not None and stage == self.client_stage[self.phase] and brkpnt != -1 and content.find(self.delimiters[self.phase]) == -1:
             self.message_contents[self.phase] = content
             self.phase += 1
             self.send('250 OK')
@@ -392,10 +376,11 @@ class ConnectionHandler:
     # Expecting a DATA:
     def data_handler(self):
         # Declarations
-        data_contents = None
+        global numMessages
+        data_contents = []
 
         # Handle case for multiple recipients
-        if self.raw_message.find('RCPT TO') is not -1:
+        if self.raw_message.find('RCPT TO') != -1:
             self.phase -= 1
             self.to_handler()
             return
@@ -422,7 +407,7 @@ class ConnectionHandler:
 
         # Backup if appropriate
         with backupLock:
-            if numMessages > 0 and numMessages % 32 is 0:
+            if numMessages > 0 and numMessages % 32 == 0:
                 backupStart.notify()
                 backupInProg = 1
                 while backupInProg is 1:
@@ -435,6 +420,7 @@ class ConnectionHandler:
     # Data contents filled out and sent
     def send_message(self):
         # Initialize variables
+        global numMessages
         full_message = []
         main_mail_box = open(FILE_NAME, 'a')
 
@@ -443,16 +429,16 @@ class ConnectionHandler:
 
         # Fill out message
         full_message.append('Received: from ' + self.message_contents[0] + ' by jfw222 (CS4410MP3)')
-        full_message.append('Number: ' + str(self.numMessages))
+        full_message.append('Number: ' + str(numMessages))
         full_message.append('From: ' + self.message_contents[1])
         for i in self.recipients:
             full_message.append('To: ' + self.recipients[i])
         for i in self.data:
-            full_message.append(self.data[i])
+            full_message.append(i)
 
         # Add message to mailbox file
         for i in full_message:
-            main_mail_box.write(full_message[i] + '\n\r')
+            main_mail_box.write(i + '\n\r')
         main_mail_box.write('\n\r')
         main_mail_box.close()
 
