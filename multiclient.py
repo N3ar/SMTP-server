@@ -27,24 +27,21 @@ fromaddr = sys.argv[4] if len(sys.argv) > 4 else "nobody@example.com"
 # thread pool clone from server.py
 class ThreadPool:
     def __init__(self):
-        # Do I have to import locks used during init?
+        # Global variables
         global workerLock
         global workerReady
         global workerDone
 
-        # TODO Or should I just use a global? :(
+        # Local variable
         self.numThreads = POOL_THREADS
 
-    # Spawn 32 SMTPHandler Threads
-    # TODO Initially I had this as a run method and it failed... I don't know why
+        # Spawn 32 SMTPHandler Threads
         with workerLock:
             for i in range(self.numThreads):
                 SimulatedClient()
 
     # If socket not in use, assign clientsocket
     def assign_thread(self, clientsocket):
-        # TODO why doesn't it make me redefine workerLock in this method after
-        # TODO made me define socketInUse?
         global socketInUse
         global OPERATIONS
 
@@ -77,7 +74,6 @@ class SimulatedClient(Thread):
                 workerDone.notifyAll()
                 OPERATIONS -= 1
             communication.handle()
-            print('ops remaining: ' + str(OPERATIONS))
 
 
 class ConnectionHandler:
@@ -95,8 +91,6 @@ class ConnectionHandler:
 
     def handle(self):
         commands = ['HELO', 'MAIL FROM:', 'RCPT TO:', 'DATA']
-        #complete = False
-        #while complete is False:
         if randomize() is True:
             command = random.randrange(0, 5)
             if command == 4:
@@ -107,9 +101,7 @@ class ConnectionHandler:
             self.send('HELO someN3RD')
         reply = self.parse_msg() # will need to parse response
         if reply is not None:
-            print('server: ' + reply)
         # MAIL FROM
-        #while complete is False:
         if randomize() is True:
             command = random.randrange(0, 5)
             if command == 4:
@@ -120,9 +112,7 @@ class ConnectionHandler:
             self.send('MAIL FROM: some@N3RD.ru')
         reply = self.parse_msg()
         if reply is not None:
-            print('server: ' + reply)
         # RCPT TO
-        #while complete is False:
         for i in range(random.randint(1,4)):
             if randomize() is True:
                 command = random.randrange(0, 5)
@@ -134,7 +124,6 @@ class ConnectionHandler:
                 self.send('RCPT TO: some@N3RD.ru')
             reply = self.parse_msg()
             if reply is not None:
-                print('server: ' + reply)
         # DATA
         #while complete is False:
         if randomize() is True:
@@ -149,7 +138,6 @@ class ConnectionHandler:
             self.send(' Nerdy content from someN3RD is nerdy.\r\n.\r\n')
         reply = self.parse_msg()
         if reply is not None:
-            print('server: ' + reply)
 
     def parse_msg(self):
         try:
@@ -193,7 +181,6 @@ while True:
         csocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         csocket.connect((host, port))
     except socket.error:
-        print('connection error')
         csocket.close()
     pool.assign_thread(csocket)
 

@@ -4,19 +4,23 @@ Describe the contents of an IP packet and for each field describe the purpose it
 
     1)  Version: of the protocol
     2)  IHL: how long the header will be
-    3)  QoS: *******************************
-    4)  Length: total length of the IP packet header & data inclusive
-    5)  Identifier: unique identifiers for fragments of a single IP datagram
-        such as flags and offset
-    6)  TTL: How many hops the packet has left before a router drops it to
-        prevent it from circulating forever
-    7)  Protocol: The "Application Layer" protocol that sits above IP like TCP
-    8)  Checksum: The value that indicates if the integrity of the IP Packet
+    3)  Service Type: consists of 1) precedence 2) delay 3) throughput 4)
+        5) reliability
+    4)  Length: total length of the IP packet header & packet data inclusive
+    5)  Identification: communicates what conversation the packet belongs to
+    6)  Flags: Indicate whether or not the packet should NOT be fragmented or
+        if there are more fragments coming
+    7)  Fragment offset: Indicates the sequences that the packets should be in
+    8)  TTL: How many hops the packet has left before a router drops it to
+        prevent it from circulating forever/ slowing down the network
+    9)  Protocol: Indicates the "Application Layer" protocol that sits "above"
+        IP like TCP.
+    10) Checksum: The value that indicates if the integrity of the IP Packet
         header is correct
-    9)  Source IP: Sender's IP address
-    10) Destination IP: Recipients IP Address
-    11) Options: Generally not used, but can contain extras like timestamp
-    12) Data: The higher level protocol header and associated data being sent
+    11) Source IP: Sender's IP address
+    12) Destination IP: Recipients IP Address
+    13) Options & padding: Generally not used, but can contain extra metadata
+    14) Data: The higher level protocol header and associated data being sent
         through IP.
 
 Describe the general operation of the BGP protocol.
@@ -26,21 +30,30 @@ Describe the general operation of the BGP protocol.
 
 Describe why the ethernet protocol necessitates a minimum packet size.
 
-    <your answer>
+    The ethernet protocol uses a minimum packet size to facilitate collision
+    detection and for compatability reasons. 64 byte collision detection
+    doesn't work with modern networks, but there is no reason to get rid
+    of it. It also keeps compatibility with old software.
 
 Describe how TCP reacts to congestion in the network.  Assume that
 congestion is brought on by BGP reconfiguring the path such that TCP
 packets now go through a bottleneck link of capacity B packets/second.
 Describe in detail what TCP will do when faced with this bottleneck.
 
-    <your answer>
+    TCP reacts to network congestion by slowing down the sender, and beginning
+    to increase the sending rate. When faced with this bottle neck, TCP will
+    cut back to 1 MSS, and will double its rate until it reaches B/2. Then
+    it will begin "collision avoidance" and increase slowly until it reaches
+    stasis (or until the next time the network is gummed up).
 
 Describe TCP's behavior when it is first getting started delivering data
 over a high latency, high-bandwidth channel such as a satellite link. Be
 sure to explain how TCP manages its window size during the initial
 connection setup.
 
-    <your answer>
+    TCP goes through what is called the "slow start phase." The window size
+    starts out at it's smallest (1 MSS) and, for each ACK, doubles the
+    throughput.
 
 On an ethernet segment, the ARP protocol is used to locate the ethernet
 address of a host whose IP address is known. On the Internet, DNS is
@@ -50,24 +63,36 @@ while the latter implements a scalable, distributed database. Explain
 why DNS was designed the way it was, and not, for instance, based on
 a simple broadcast.
 
-    <your answer>
+    DNS was designed to work with the scale of the internet. Think of it like
+    a decision tree. It steps through the DNS hierarchy to resolve hostnames
+    rather than crashing the internet with constant, potentially enormous,
+    broadcasts.
 
 Describe the two means by which a DNS name, such as www.cnn.com, is
 resolved.
 
-    <your answer>
+    1)  Recursive: The client reaches out to the server, which responds if it
+        has the answer, or asks other servers.
+    2)  Iterative: The client reaches our to the server, which responds if it
+        has the answer, or returns the name of the next server to ask.
 
 What is a DNS local resolver?
 
-    <your answer>
+    Software installed oon a server performing DNS lookups that can lookup the
+    "Fully Qualified Domain Name" for any IP. Is available form the OS vendors
+    of all OSes supported with ASL and is installed on most systems.
+    - Answer referenced from:
+    "https://www.atomicorp.com/wiki/index.php?title=Local_DNS_resolver"
 
 What purpose does the ACK # serve in TCP?
 
-    <your answer> * Provides the next byte of data that the other machine is waiting for
+    The ACK number provides the next byte of data that the other machine is
+    waiting for. The first ACK sent by both ends of the conversation both
+    ACKnowledges the other's existence sequence.
 
 What purpose does the destination port number serve in UDP?
 
-    <your answer> * sending to correct process
+    The port number serves to send information to correct process.
 
 Why does UDP include a checksum? Wouldn't the end-to-end argument
 require that all checksums be performed at the application level, and
@@ -76,14 +101,21 @@ network stack?
 
     UDP doesn't care about details, but it does assure integrity.
     By performing a check at each stage, errors are caught sooner, increasing
-    the efficiency of the protocol.
+    the efficiency of the protocol and increasing the likelihood that they
+    will be caught.
 
 Imagine that a mail server on host A has just received a TCP/IP SYN
 packet destined for it. Describe everything that happens to this packet
 from the point of its reception by the network interface card to the
 point of its delivery to the mail server.
 
-    HERE
+    Starts on the NIC:
+    1)  Is on the Network Layer as packets on the NIC
+    2)  IP header is stripped and the data is sent along the Transport Layer
+        as a TCP packet.
+    3)  (skipping describing session and presentation layers) The data has been
+        parsed to digestible form by whatever application is receiving it.
+        In our case, it was SMTP.
 
 In IPv6, why do routers not fragment packets? Then how does IPv6 deal with the issue
 of Minimum Transmission Unit (MTU)?
