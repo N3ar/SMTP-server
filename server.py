@@ -38,26 +38,25 @@ mailDelivery = Condition(backupLock)    # backup and delivery don't overlap
 # thread pool
 class ThreadPool:
     def __init__(self):
-        # Do I have to import locks used during init?
+        # Global variables
         global workerLock
         global workerReady
         global workerDone
 
-        # TODO Or should I just use a global? :(
+        # Local variables
         self.numThreads = POOL_THREADS
 
-    # Spawn 32 SMTPHandler Threads
-    # TODO Initially I had this as a run method and it failed... I don't know why
+        # Spawn 32 SMTPHandler Threads
         with workerLock:
             for i in range(self.numThreads):
-                SMTPHandler(i)
+                SMTPHandler()
 
     # If socket not in use, assign clientsocket
     def assign_thread(self, clientsocket):
-        # TODO why doesn't it make me redefine workerLock in this method after
-        # TODO made me define socketInUse?
+        # global variables
         global socketInUse
 
+        # Assign SMTP handlers to sockets
         with workerLock:
             while socketInUse is not None:
                 workerDone.wait()
@@ -68,18 +67,24 @@ class ThreadPool:
 # each SMTP handling thread
 class SMTPHandler(Thread):
     def __init__(self, num):
+        # Global variables
         global workerLock
         global socketInUse
 
-        Thread.__init__(self)
+        # Local variable
         self.num = num
+
+        # Start SMTP Handler thread
+        Thread.__init__(self)
         self.start()
 
     # handle successful SMTP connections
     def run(self):
+        # Global variables
         global workerLock
         global socketInUse
 
+        # Manage content coming over socket
         while True:
             with workerLock:
                 # wait until socket assigned from client request
