@@ -18,6 +18,7 @@ port = 8765
 # value definitions
 POOL_THREADS = 32
 FILE_NAME = 'mailbox'
+FAULT_TOLERANCE = 10
 
 # global variables
 socketInUse = None
@@ -49,7 +50,7 @@ class ThreadPool:
     # TODO Initially I had this as a run method and it failed... I don't know why
         with workerLock:
             for i in range(self.numThreads):
-                SMTPHandler()
+                SMTPHandler(i)
 
     # If socket not in use, assign clientsocket
     def assign_thread(self, clientsocket):
@@ -66,11 +67,12 @@ class ThreadPool:
 
 # each SMTP handling thread
 class SMTPHandler(Thread):
-    def __init__(self):
+    def __init__(self, num):
         global workerLock
         global socketInUse
 
         Thread.__init__(self)
+        self.num = num
         self.start()
 
     # handle successful SMTP connections
@@ -89,6 +91,7 @@ class SMTPHandler(Thread):
                 workerDone.notify()
             # Handle connection outside of lock
             successful_connection.handle()
+            print(str(self.num) + ' still moving')
 
 
 # performs mail server backup
@@ -136,10 +139,10 @@ class ConnectionHandler:
         self.recipients = []
         self.data = []
         self.message_contents = [None, None, self.recipients, self.data]
-        self.client_stage = ['HELO', 'MAIL FROM', 'RCPT TO', 'DATA']
-        self.delimiters = [' ', ':', ':', ' ']
+        self.client_stage = ['HELO', 'MAIL FROM', 'RCPT TO', 'DATA', 'nope']
+        self.delimiters = [' ', ':', ':', ' ', '']
         self.phase = 0
-        # May want to track errors
+        self.errors = 0
 
     # Handle individual connection
     def handle(self):
@@ -149,7 +152,7 @@ class ConnectionHandler:
         print('server: 220 jfw222 SMTP CS4410MP3')
 
         # Handle based on phase
-        while self.phase is not None:
+        while self.phase < 4 and self.errors < FAULT_TOLERANCE:
             if self.phase == 0:
                 self.helo_handler()
             elif self.phase == 1:
@@ -159,31 +162,31 @@ class ConnectionHandler:
             elif self.phase == 3:
                 self.data_handler()
         self.socket.close()
+        print('5 toop')
 
     # Force byte formatting and send
     def send(self, mailstring):
         try:
             self.socket.send(mailstring.encode('utf-8') + '\r\n')
-        except:
-            self.timeout()
+        except socket.error:
+            #self.timeout()
             self.socket.close()
+            self.errors += 1
             return
 
     # Parse received message
     def parse_msg(self):
-        self.socket.settimeout(10)
-        while True:
-            if self.raw_message.find('\r\n') != -1:
-                break
-            try:
+        try:
+            self.socket.settimeout(10)
+            while True:
+                if self.raw_message.find('\r\n') != -1:
+                    break
                 self.raw_message += self.socket.recv(500)
-            except:
-                self.socket.settimeout(None)
-                self.timeout()
-                self.socket.close()
-                return
-
-        self.socket.settimeout(None)
+            self.socket.settimeout(None)
+        except socket.error:
+            self.timeout()
+            #self.socket.close()
+            return '.'
 
         command = self.raw_message[0:self.raw_message.find('\r\n')]
         self.raw_message = self.raw_message[self.raw_message.find('\r\n')+2:]
@@ -310,6 +313,7 @@ class ConnectionHandler:
         # Ensure received message has contents
         if self.rec_message is None:
             print('error handle')
+            self.errors += 1
             return
 
         # Process parts of message
@@ -329,6 +333,7 @@ class ConnectionHandler:
             print('server: 250 jfw222')
 
         else:
+            self.errors += 1
             self.command_errors(stage, brkpnt, content)
 
     # Expecting a MAIL FROM
@@ -338,6 +343,7 @@ class ConnectionHandler:
         # Ensure received message has contents
         if self.rec_message is None:
             print('error handle')
+            self.errors += 1
             return
 
         # Process parts of message
@@ -357,6 +363,7 @@ class ConnectionHandler:
             print('server: 250 OK')
 
         else:
+            self.errors += 1
             self.command_errors(stage, brkpnt, content)
 
     # Expecting a RCPT TO
@@ -366,6 +373,7 @@ class ConnectionHandler:
         # Ensure received message has contents
         if self.rec_message is None:
             print('error handle')
+            self.errors += 1
             return
 
         # Process parts of message
@@ -385,6 +393,7 @@ class ConnectionHandler:
             print('server: 250 OK')
 
         else:
+            self.errors += 1
             self.command_errors(stage, brkpnt, content)
 
     # Expecting a DATA:
@@ -405,32 +414,32 @@ class ConnectionHandler:
         print('server: 354 End data with <CR><LF>.<CR><LF>')
 
         self.rec_message = self.parse_msg()
-
+        print('1 toop')
         # Ensure received message has contents
         if self.rec_message is None:
             print('error handle')
+            self.errors += 1
             return
-
+        print('2 toop')
         # Check to see if only content is period
-        self.socket.settimeout(10)
+        #self.socket.settimeout(10)
         while self.rec_message is not '.':
             data_contents.append(self.rec_message)
             self.rec_message = self.parse_msg()
-        self.socket.settimeout(None)
-
+        #self.socket.settimeout(None)
+        print('3 toop')
         self.data = data_contents
 
         # Backup if appropriate
         with backupLock:
             if numMessages > 0 and numMessages % 32 == 0:
-                backupStart.notify()
                 backupInProg = 1
+                backupStart.notify()
                 while backupInProg is 1:
                     mailDelivery.wait()
-
             self.send_message()
-
-        self.phase = None
+        print('4 toop')
+        self.phase = 4
 
     # Data contents filled out and sent
     def send_message(self):
@@ -453,19 +462,21 @@ class ConnectionHandler:
 
         # Add message to mailbox file
         for i in full_message:
-            main_mail_box.write(i + '\n\r')
-        main_mail_box.write('\n\r')
+            main_mail_box.write(i + '\n')
+        main_mail_box.write('\r\n')
         main_mail_box.close()
 
         # confirm delivery
-        self.socket.send('250 OK: delivered message ' + str(numMessages))
+        self.send('250 OK: delivered message ' + str(numMessages))
+        #self.socket.send('250 OK: delivered message ' + str(numMessages))
         # TODO REMOVE TEST #
         print('server: 250 OK: delivered message ' + str(numMessages))
 
     # Handle timeout
     def timeout(self):
-        self.phase = None
-        self.socket.send('421 4.4.2 jfw222 Error: timeout exceeded')
+        self.phase = 4
+        self.send('421 4.4.2 jfw222 Error: timeout exceeded')
+        #self.socket.send('421 4.4.2 jfw222 Error: timeout exceeded')
         # TODO REMOVE TEST #
         print('server: 421 4.4.2 jfw222 Error: timeout exceeded')
 

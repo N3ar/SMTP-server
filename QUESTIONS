@@ -2,20 +2,22 @@ NETID:  jfw222
 
 Describe the contents of an IP packet and for each field describe the purpose it serves.
 
-    1)  Version
-    2)  IHL
-    3)  QoS
-    4)  Length
-    5)  ID
-    6)  0
-    7)  DF
-    8)  MF
-    9)  Fragment Offset
-    10) TTL
-    11) Protocol
-    12) Checksum
-    13) Source IP
-    14) Destination IP
+    1)  Version: of the protocol
+    2)  IHL: how long the header will be
+    3)  QoS: *******************************
+    4)  Length: total length of the IP packet header & data inclusive
+    5)  Identifier: unique identifiers for fragments of a single IP datagram
+        such as flags and offset
+    6)  TTL: How many hops the packet has left before a router drops it to
+        prevent it from circulating forever
+    7)  Protocol: The "Application Layer" protocol that sits above IP like TCP
+    8)  Checksum: The value that indicates if the integrity of the IP Packet
+        header is correct
+    9)  Source IP: Sender's IP address
+    10) Destination IP: Recipients IP Address
+    11) Options: *****************
+    12) Data: The higher level protocol header and associated data being sent
+        through IP.
 
 Describe the general operation of the BGP protocol.
 
@@ -61,11 +63,11 @@ What is a DNS local resolver?
 
 What purpose does the ACK # serve in TCP?
 
-    <your answer>
+    <your answer> * Provides the next byte of data that the other machine is waiting for
 
 What purpose does the destination port number serve in UDP?
 
-    <your answer>
+    <your answer> * sending to correct process
 
 Why does UDP include a checksum? Wouldn't the end-to-end argument
 require that all checksums be performed at the application level, and
@@ -81,8 +83,7 @@ packet destined for it. Describe everything that happens to this packet
 from the point of its reception by the network interface card to the
 point of its delivery to the mail server.
 
-
- 
+    HERE
 
 In IPv6, why do routers not fragment packets? Then how does IPv6 deal with the issue
 of Minimum Transmission Unit (MTU)?
@@ -99,6 +100,6 @@ to use a proxy instead of a vpn?
 
     Proxy is better for keeping cost down. Proxies can also be used to fake
     locational data. A proxy simply acts as an intermediary for requests. A VPN
-    is actually an entire network over the telecom structure, granting a user
-    secure access. VPNs are also generally restricted to one computer per
+    is actually an encrypted virtual tunnel over the telecom structure, granting
+    a user secure access. VPNs are also generally restricted to one computer per
     connection, where a proxy can support many.

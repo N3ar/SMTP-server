@@ -72,11 +72,12 @@ class SimulatedClient(Thread):
             with workerLock:
                 while socketInUse is None:
                     workerReady.wait()
-                OPERATIONS -= 1
                 communication = ConnectionHandler(socketInUse)
                 socketInUse = None
                 workerDone.notify()
+                OPERATIONS -= 1
             communication.handle()
+            print('ops remaining: ' + str(OPERATIONS))
 
 
 class ConnectionHandler:
@@ -86,8 +87,11 @@ class ConnectionHandler:
 
     # Force byte formatting and send
     def send(self, mailstring):
-        self.socket.send(mailstring.encode('utf-8') + '\r\n')
-
+        try:
+            self.socket.send(mailstring.encode('utf-8') + '\r\n')
+        except socket.error:
+            self.socket.close()
+            return
 
     def handle(self):
         commands = ['HELO', 'MAIL FROM:', 'RCPT TO:', 'DATA']
@@ -102,8 +106,8 @@ class ConnectionHandler:
         else:
             self.send('HELO someN3RD')
         reply = self.parse_msg() # will need to parse response
-        if reply is None:
-            print('Some error')
+        if reply is not None:
+            print('server: ' + reply)
         # MAIL FROM
         #while complete is False:
         if randomize() is True:
@@ -115,8 +119,8 @@ class ConnectionHandler:
         else:
             self.send('MAIL FROM: some@N3RD.ru')
         reply = self.parse_msg()
-        if reply is None:
-            print('Some error')
+        if reply is not None:
+            print('server: ' + reply)
         # RCPT TO
         #while complete is False:
         for i in range(random.randint(1,4)):
@@ -129,8 +133,8 @@ class ConnectionHandler:
             else:
                 self.send('RCPT TO: some@N3RD.ru')
             reply = self.parse_msg()
-            if reply is None:
-                print('Some error')
+            if reply is not None:
+                print('server: ' + reply)
         # DATA
         #while complete is False:
         if randomize() is True:
@@ -144,16 +148,20 @@ class ConnectionHandler:
         else:
             self.send(' Nerdy content from someN3RD is nerdy.\r\n.\r\n')
         reply = self.parse_msg()
-        if reply is None:
-            print('Some error')
+        if reply is not None:
+            print('server: ' + reply)
 
     def parse_msg(self):
-        self.socket.settimeout(10)
-        while True:
-            if self.raw_message.find('\r\n') != -1:
-                break
-            self.raw_message += self.socket.recv(500)
-        self.socket.settimeout(None)
+        try:
+            self.socket.settimeout(10)
+            while True:
+                if self.raw_message.find('\r\n') != -1:
+                    break
+                self.raw_message += self.socket.recv(500)
+            self.socket.settimeout(None)
+        except socket.error:
+            self.socket.close()
+            return
 
         command = self.raw_message[0:self.raw_message.find('\r\n')]
         self.raw_message = self.raw_message[self.raw_message.find('\r\n')+2:]
@@ -168,7 +176,7 @@ def randomize():
 #
 # http://stackoverflow.com/questions/367586/generating-random-text-strings-of-a-given-pattern
 def alter(content):
-    return "".join( [random.choice(string.letters) for i in content])
+    return "".join([random.choice(string.letters) for i in content])
 
 
 def send(socket, message):
