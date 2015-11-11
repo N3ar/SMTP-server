@@ -43,12 +43,11 @@ class ThreadPool:
         # TODO Or should I just use a global? :(
         self.numThreads = POOL_THREADS
 
-    # Spawn 32 SMTPHandler Threads and 1 BackupHandler
+    # Spawn 32 SMTPHandler Threads
     def run(self):
         with workerLock:
             for i in range(self.numThreads):
                 SMTPHandler()
-        #BackupHandler()
 
     # If socket not in use, assign clientsocket
     def assign_thread(self, clientsocket):
@@ -60,6 +59,7 @@ class ThreadPool:
             while socketInUse is not None:
                 workerDone.wait()
             socketInUse = clientsocket
+            print(socketInUse)
             workerReady.notify()
 
 
@@ -68,14 +68,14 @@ class SMTPHandler(Thread):
     def __init__(self):
         global workerLock
         # TODO I can't explain why this doesn't work here but did work in the threadpool run function
-        #global socketInUse
+        global socketInUse
 
         Thread.__init__(self)
         self.start()
 
     # handle successful SMTP connections
     def run(self):
-        global socketInUse
+        #global socketInUse
 
         while True:
             with workerLock:
@@ -83,6 +83,7 @@ class SMTPHandler(Thread):
                 while socketInUse is None:
                     workerReady.wait()
                 # Initialize a ConnectionHandler for this SMTP connection
+                print('1) ' + socketInUse)
                 successful_connection = ConnectionHandler(socketInUse)
                 socketInUse = None
                 workerDone.notify()
@@ -109,7 +110,7 @@ class BackupHandler(Thread):
         # NEED LOCK ON THIS AND DELIVERY
         while True:
             with backupLock:
-                while numMessages % 32 is not 0:
+                while numMessages is 0 or numMessages % 32 is not 0:
                     backupStart.wait()
                 # copy mailbox
                 # clear "mailbox"
