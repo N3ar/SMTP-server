@@ -6,6 +6,7 @@ import sys
 from threading import Thread, Lock, Condition
 import string
 import shutil
+import os
 
 # Don't change 'host' and 'port' values below.  If you do, we will not be able to contact 
 # your server when grading.  Instead, you should provide command-line arguments to this
@@ -114,6 +115,7 @@ class BackupHandler(Thread):
                 backup_filename = './' + FILE_NAME + '.' + str(numMessages-31) + '-' + str(numMessages)
                 shutil.copyfile('./' + FILE_NAME, backup_filename)
                 # clear "mailbox"
+                os.remove('./' + FILE_NAME)
                 clearedBox = open(FILE_NAME, 'w')
                 clearedBox.write('')
                 clearedBox.close()
@@ -377,6 +379,7 @@ class ConnectionHandler:
     def data_handler(self):
         # Declarations
         global numMessages
+        global backupInProg
         data_contents = []
 
         # Handle case for multiple recipients

@@ -3,6 +3,8 @@ import sys
 import socket
 import datetime
 from threading import Thread, Lock, Condition
+import random
+import string
 
 # This is the multi-threaded client.  This program should be able to run
 # with no arguments and should connect to "127.0.0.1" on port 8765.  It
@@ -11,6 +13,10 @@ from threading import Thread, Lock, Condition
 
 OPERATIONS = 1000
 POOL_THREADS = 32
+
+workerLock = Lock()
+workerReady = Condition(workerLock)
+workerDone = Condition(workerLock)
 
 host = sys.argv[1] if len(sys.argv) > 1 else "127.0.0.1"
 port = int(sys.argv[2]) if len(sys.argv) > 2 else 8765
@@ -32,41 +38,151 @@ class ThreadPool:
     # TODO Initially I had this as a run method and it failed... I don't know why
         with workerLock:
             for i in range(self.numThreads):
-                SMTPHandler()
+                SimulatedClient()
 
     # If socket not in use, assign clientsocket
     def assign_thread(self, clientsocket):
         # TODO why doesn't it make me redefine workerLock in this method after
         # TODO made me define socketInUse?
         global socketInUse
+        global OPERATIONS
 
         with workerLock:
-            while socketInUse is not None:
+            while socketInUse is not None or OPERATIONS <= 0:
                 workerDone.wait()
             socketInUse = clientsocket
             workerReady.notify()
+
+
+class SimulatedClient(Thread):
+    def __init__(self):
+        global workerLock
+        global workerDone
+        global workerReady
+
+        Thread.__init__(self)
+        self.start()
+
+    def run(self):
+        global socketInUse
+        global OPERATIONS
+
+        while True:
+            with workerLock():
+                while socketInUse is None:
+                    workerReady.wait()
+                OPERATIONS -= 1
+                communication = ConnectionHandler(socketInUse)
+                socketInUse = None
+                workerDone.notify()
+            communication.handle()
+
+
+class ConnectionHandler:
+    def __init__(self, socket):
+        self.socket = socket
+        self.raw_message = ''
+
+    # Force byte formatting and send
+    def send(self, mailstring):
+        self.socket.send(mailstring.encode('utf-8') + '\r\n')
+
+
+    def handle(self):
+        commands = ['HELO', 'MAIL FROM:', 'RCPT TO:', 'DATA']
+        complete = False
+        #while complete is False:
+        if randomize() is True:
+            command = random.randrange(0, 5)
+            if command == 4:
+                self.send(self.socket, alter('HELO someN3RD'))
+            else:
+                self.send(self.socket, commands[command] + alter(' someN3RD'))
+        else:
+            self.send(self.socket, 'HELO someN3RD')
+        reply = self.parse_msg(complete) # will need to parse response
+        if reply is None:
+            print('Some error')
+        # MAIL FROM
+        #while complete is False:
+        if randomize() is True:
+            command = random.randrange(0, 5)
+            if command == 4:
+                self.send(self.socket, alter('MAIL FROM: some@N3RD.ru'))
+            else:
+                self.send(self.socket, commands[command] + alter(' some@N3RD.ru'))
+        else:
+            self.send(self.socket, 'MAIL FROM: some@N3RD.ru')
+        reply = self.parse_msg(complete)
+        if reply is None:
+            print('Some error')
+        # RCPT TO
+        #while complete is False:
+        for i in range(random.randint(1,4)):
+            if randomize() is True:
+                command = random.randrange(0, 5)
+                if command == 4:
+                    self.send(self.socket, alter('RCPT TO: some@N3RD.ru'))
+                else:
+                    self.send(commands[command] + alter(' some@N3RD.ru'))
+            else:
+                self.send('RCPT TO: some@N3RD.ru')
+            reply = self.parse_msg(complete)
+            if reply is None:
+                print('Some error')
+        # DATA
+        #while complete is False:
+        if randomize() is True:
+            self.send(alter('DATA\r\n'))
+        else:
+            self.send('DATA\r\n')
+        # DATA CONTENT
+        #while complete is False:
+        if randomize() is True:
+            self.send(alter(' Nerdy content from someN3RD is nerdy.\r\n.\r\n'))
+        else:
+            self.send(' Nerdy content from someN3RD is nerdy.\r\n.\r\n')
+        reply = self.parse_msg(complete)
+        if reply is None:
+            print('Some error')
+
+    def parse_msg(self):
+        self.socket.settimeout(10)
+        while True:
+            if self.raw_message.find('\r\n') != -1:
+                break
+            self.raw_message += self.socket.recv(500)
+        self.socket.settimeout(None)
+
+        command = self.raw_message[0:self.raw_message.find('\r\n')]
+        self.raw_message = self.raw_message[self.raw_message.find('\r\n')+2:]
+        return command
+
+def randomize():
+    if random.randrange(0, 10) >= 9:
+        return True
+    return False
+
+
+#
+# http://stackoverflow.com/questions/367586/generating-random-text-strings-of-a-given-pattern
+def alter(content):
+    return "".join( [random.choice(string.letters) for i in content])
+
 
 def send(socket, message):
     # In Python 3, must convert message to bytes explicitly.
     # In Python 2, this does not affect the message.
     socket.send(message.encode('utf-8'))
 
-def sendmsg(msgid, hostname, portnum, sender, receiver):
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.connect((hostname, portnum))
 
-    send(s, "HELO %s\r\n" % socket.gethostname())
-    print(s.recv(500))
-
-    send(s, "MAIL FROM: %s\r\n" % sender)
-    print(s.recv(500))
-
-
-    send(s, "RCPT TO: %s\r\n" % receiver)
-    print(s.recv(500))
-
-    send(s, "DATA\r\nFrom: %s\r\nTo: %s\r\nDate: %s -0500\r\nSubject: msg %d\r\n\r\nContents of message %d end here.\r\n.\r\n" % (sender, receiver, datetime.datetime.now().ctime(), msgid, msgid))
-    print(s.recv(500))
-
-for i in range(1, 10):
-    sendmsg(i, host, port, fromaddr, toaddr)
+pool = ThreadPool()
+while True:
+    try:
+        # Provided server.py code
+        csocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        csocket.connect((host, port))
+    except socket.error:
+        print('connection error')
+        csocket.close()
+    pool.assign_thread(csocket)

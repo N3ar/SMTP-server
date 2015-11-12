@@ -1,12 +1,26 @@
-NETID:  <your netid here>
+NETID:  jfw222
 
 Describe the contents of an IP packet and for each field describe the purpose it serves.
 
-    <your answer>
+    1)  Version
+    2)  IHL
+    3)  QoS
+    4)  Length
+    5)  ID
+    6)  0
+    7)  DF
+    8)  MF
+    9)  Fragment Offset
+    10) TTL
+    11) Protocol
+    12) Checksum
+    13) Source IP
+    14) Destination IP
 
 Describe the general operation of the BGP protocol.
 
-    <your answer>
+    The Border Gateway Protocol serves to bridge the gap between various AS
+    (Autonomous Systems). Different sections of the internet exist
 
 Describe why the ethernet protocol necessitates a minimum packet size.
 
