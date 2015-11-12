@@ -162,7 +162,12 @@ class ConnectionHandler:
 
     # Force byte formatting and send
     def send(self, mailstring):
-        self.socket.send(mailstring.encode('utf-8') + '\r\n')
+        try:
+            self.socket.send(mailstring.encode('utf-8') + '\r\n')
+        except:
+            self.timeout()
+            self.socket.close()
+            return
 
     # Parse received message
     def parse_msg(self):
@@ -170,7 +175,14 @@ class ConnectionHandler:
         while True:
             if self.raw_message.find('\r\n') != -1:
                 break
-            self.raw_message += self.socket.recv(500)
+            try:
+                self.raw_message += self.socket.recv(500)
+            except:
+                self.socket.settimeout(None)
+                self.timeout()
+                self.socket.close()
+                return
+
         self.socket.settimeout(None)
 
         command = self.raw_message[0:self.raw_message.find('\r\n')]
@@ -446,14 +458,14 @@ class ConnectionHandler:
         main_mail_box.close()
 
         # confirm delivery
-        self.send('250 OK: delivered message ' + str(numMessages))
+        self.socket.send('250 OK: delivered message ' + str(numMessages))
         # TODO REMOVE TEST #
         print('server: 250 OK: delivered message ' + str(numMessages))
 
     # Handle timeout
     def timeout(self):
         self.phase = None
-        self.send('421 4.4.2 jfw222 Error: timeout exceeded')
+        self.socket.send('421 4.4.2 jfw222 Error: timeout exceeded')
         # TODO REMOVE TEST #
         print('server: 421 4.4.2 jfw222 Error: timeout exceeded')
 

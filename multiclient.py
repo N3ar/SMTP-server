@@ -13,6 +13,7 @@ import string
 
 OPERATIONS = 1000
 POOL_THREADS = 32
+socketInUse = None
 
 workerLock = Lock()
 workerReady = Condition(workerLock)
@@ -68,7 +69,7 @@ class SimulatedClient(Thread):
         global OPERATIONS
 
         while True:
-            with workerLock():
+            with workerLock:
                 while socketInUse is None:
                     workerReady.wait()
                 OPERATIONS -= 1
@@ -95,12 +96,12 @@ class ConnectionHandler:
         if randomize() is True:
             command = random.randrange(0, 5)
             if command == 4:
-                self.send(self.socket, alter('HELO someN3RD'))
+                self.send(alter('HELO someN3RD'))
             else:
-                self.send(self.socket, commands[command] + alter(' someN3RD'))
+                self.send(commands[command] + alter(' someN3RD'))
         else:
-            self.send(self.socket, 'HELO someN3RD')
-        reply = self.parse_msg(complete) # will need to parse response
+            self.send('HELO someN3RD')
+        reply = self.parse_msg() # will need to parse response
         if reply is None:
             print('Some error')
         # MAIL FROM
@@ -108,12 +109,12 @@ class ConnectionHandler:
         if randomize() is True:
             command = random.randrange(0, 5)
             if command == 4:
-                self.send(self.socket, alter('MAIL FROM: some@N3RD.ru'))
+                self.send(alter('MAIL FROM: some@N3RD.ru'))
             else:
-                self.send(self.socket, commands[command] + alter(' some@N3RD.ru'))
+                self.send(commands[command] + alter(' some@N3RD.ru'))
         else:
-            self.send(self.socket, 'MAIL FROM: some@N3RD.ru')
-        reply = self.parse_msg(complete)
+            self.send('MAIL FROM: some@N3RD.ru')
+        reply = self.parse_msg()
         if reply is None:
             print('Some error')
         # RCPT TO
@@ -122,12 +123,12 @@ class ConnectionHandler:
             if randomize() is True:
                 command = random.randrange(0, 5)
                 if command == 4:
-                    self.send(self.socket, alter('RCPT TO: some@N3RD.ru'))
+                    self.send(alter('RCPT TO: some@N3RD.ru'))
                 else:
                     self.send(commands[command] + alter(' some@N3RD.ru'))
             else:
                 self.send('RCPT TO: some@N3RD.ru')
-            reply = self.parse_msg(complete)
+            reply = self.parse_msg()
             if reply is None:
                 print('Some error')
         # DATA
@@ -142,7 +143,7 @@ class ConnectionHandler:
             self.send(alter(' Nerdy content from someN3RD is nerdy.\r\n.\r\n'))
         else:
             self.send(' Nerdy content from someN3RD is nerdy.\r\n.\r\n')
-        reply = self.parse_msg(complete)
+        reply = self.parse_msg()
         if reply is None:
             print('Some error')
 
@@ -186,3 +187,4 @@ while True:
         print('connection error')
         csocket.close()
     pool.assign_thread(csocket)
+

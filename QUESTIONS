@@ -20,7 +20,7 @@ Describe the contents of an IP packet and for each field describe the purpose it
 Describe the general operation of the BGP protocol.
 
     The Border Gateway Protocol serves to bridge the gap between various AS
-    (Autonomous Systems). Different sections of the internet exist
+    (Autonomous Systems). Different sections of the internet exist,
 
 Describe why the ethernet protocol necessitates a minimum packet size.
 
@@ -72,23 +72,33 @@ require that all checksums be performed at the application level, and
 hence argue that UDP and TCP elide such additional checksums in the
 network stack?
 
-    <your answer>
+    UDP doesn't care about details, but it does assure integrity.
+    By performing a check at each stage, errors are caught sooner, increasing
+    the efficiency of the protocol.
 
 Imagine that a mail server on host A has just received a TCP/IP SYN
 packet destined for it. Describe everything that happens to this packet
 from the point of its reception by the network interface card to the
 point of its delivery to the mail server.
 
-    <your answer>
 
  
 
 In IPv6, why do routers not fragment packets? Then how does IPv6 deal with the issue
 of Minimum Transmission Unit (MTU)?
 
-    <your answer>
+    IPv6 routers do not fragment packets due to efficiency. It is far more
+    efficient for the source to handle the resizing of the information. IPv6
+    deals with MTUs in one of two ways:
+        1) Use the default MTU of 1280 which all physical networks can handle.
+        2) Use "Path MTU Discovery" - a node sends messages over the route it
+        will use to determine how large it can make the packets.
 
 What is the difference between a web proxy and a vpn? When would it be advantageous 
 to use a proxy instead of a vpn?
 
-    <your answer>
+    Proxy is better for keeping cost down. Proxies can also be used to fake
+    locational data. A proxy simply acts as an intermediary for requests. A VPN
+    is actually an entire network over the telecom structure, granting a user
+    secure access. VPNs are also generally restricted to one computer per
+    connection, where a proxy can support many.
