@@ -62,7 +62,7 @@ class ThreadPool:
             while socketInUse is not None:
                 workerDone.wait()
             socketInUse = clientsocket
-            workerReady.notify()
+            workerReady.notifyAll()
 
 
 # each SMTP handling thread
@@ -88,7 +88,7 @@ class SMTPHandler(Thread):
                 # Initialize a ConnectionHandler for this SMTP connection
                 successful_connection = ConnectionHandler(socketInUse)
                 socketInUse = None
-                workerDone.notify()
+                workerDone.notifyAll()
             # Handle connection outside of lock
             successful_connection.handle()
             print(str(self.num) + ' still moving')
@@ -125,7 +125,7 @@ class BackupHandler(Thread):
 
                 print('Backup success, mailbox is empty') # TEST STATEMENT
                 backupInProg = 0
-                mailDelivery.notify()
+                mailDelivery.notifyAll()
 
 
 # handle a single client request
@@ -396,6 +396,33 @@ class ConnectionHandler:
             self.errors += 1
             self.command_errors(stage, brkpnt, content)
 
+    def to_additional_handler(self):
+        # Ensure received message has contents
+        if self.rec_message is None:
+            print('error handle')
+            self.errors += 1
+            return
+
+        # Process parts of message
+        self.rec_message = self.rec_message.strip()
+        brkpnt = self.rec_message.find(self.delimiters[self.phase])
+        stage = string.upper(self.rec_message[0:brkpnt].strip())
+        content = self.rec_message[brkpnt+1:].strip()
+        # TODO REMOVE TEST #
+        print('client: ' + self.rec_message)
+
+        # Correct command
+        if content is not None and stage == self.client_stage[self.phase] and brkpnt != -1 and content.find(self.delimiters[self.phase]) == -1:
+            self.message_contents[self.phase] = content
+            self.phase += 1
+            self.send('250 OK')
+            # TODO REMOVE TEST #
+            print('server: 250 OK')
+
+        else:
+            self.errors += 1
+            self.command_errors(stage, brkpnt, content)
+
     # Expecting a DATA:
     def data_handler(self):
         # Declarations
@@ -403,32 +430,37 @@ class ConnectionHandler:
         global backupInProg
         data_contents = []
 
-        # Handle case for multiple recipients
-        if self.raw_message.find('RCPT TO') != -1:
-            self.phase -= 1
-            self.to_handler()
-            return
-
         # Print
         self.send('354 End data with <CR><LF>.<CR><LF>')
         print('server: 354 End data with <CR><LF>.<CR><LF>')
 
         self.rec_message = self.parse_msg()
-        print('1 toop')
-        # Ensure received message has contents
-        if self.rec_message is None:
-            print('error handle')
+
+        # Handle case for multiple recipients
+        while self.rec_message.find('RCPT TO') != -1:
+            print('handle')
+            self.phase -= 1
+            self.to_additional_handler()
+            self.rec_message = self.parse_msg()
+
+        if self.rec_message.find('DATA') == -1:
+            self.send('500 Error: command not recognized')
+            # TODO REMOVE TEST #
+            print('server: 500 Error: command not recognized')
             self.errors += 1
             return
-        print('2 toop')
+
         # Check to see if only content is period
-        #self.socket.settimeout(10)
-        while self.rec_message is not '.':
-            data_contents.append(self.rec_message)
-            self.rec_message = self.parse_msg()
-        #self.socket.settimeout(None)
-        print('3 toop')
-        self.data = data_contents
+        try:
+            self.socket.settimeout(10)
+            while self.rec_message != '.' and self.rec_message is not None:
+                data_contents.append(self.rec_message)
+                self.rec_message = self.parse_data_msg()
+            self.socket.settimeout(None)
+            self.data = data_contents
+        except socket.error:
+            self.timeout()
+            return
 
         # Backup if appropriate
         with backupLock:
@@ -438,8 +470,23 @@ class ConnectionHandler:
                 while backupInProg is 1:
                     mailDelivery.wait()
             self.send_message()
-        print('4 toop')
         self.phase = 4
+
+    # Special message parser for spot in data
+    def parse_data_msg(self):
+        while True:
+            if self.raw_message.find('\r\n') != -1:
+                return None
+            try:
+                self.raw_message += self.socket.recv(500)
+            except socket.error:
+                self.timeout()
+                return '.'
+
+        command = self.raw_message[0:self.raw_message.find('\r\n')]
+        self.raw_message = self.raw_message[self.raw_message.find('\r\n')+2:]
+        return command
+
 
     # Data contents filled out and sent
     def send_message(self):

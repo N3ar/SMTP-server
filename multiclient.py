@@ -52,7 +52,7 @@ class ThreadPool:
             while socketInUse is not None or OPERATIONS <= 0:
                 workerDone.wait()
             socketInUse = clientsocket
-            workerReady.notify()
+            workerReady.notifyAll()
 
 
 class SimulatedClient(Thread):
@@ -74,7 +74,7 @@ class SimulatedClient(Thread):
                     workerReady.wait()
                 communication = ConnectionHandler(socketInUse)
                 socketInUse = None
-                workerDone.notify()
+                workerDone.notifyAll()
                 OPERATIONS -= 1
             communication.handle()
             print('ops remaining: ' + str(OPERATIONS))
@@ -95,7 +95,7 @@ class ConnectionHandler:
 
     def handle(self):
         commands = ['HELO', 'MAIL FROM:', 'RCPT TO:', 'DATA']
-        complete = False
+        #complete = False
         #while complete is False:
         if randomize() is True:
             command = random.randrange(0, 5)
@@ -166,6 +166,7 @@ class ConnectionHandler:
         command = self.raw_message[0:self.raw_message.find('\r\n')]
         self.raw_message = self.raw_message[self.raw_message.find('\r\n')+2:]
         return command
+
 
 def randomize():
     if random.randrange(0, 10) >= 9:

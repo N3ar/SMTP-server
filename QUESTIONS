@@ -15,7 +15,7 @@ Describe the contents of an IP packet and for each field describe the purpose it
         header is correct
     9)  Source IP: Sender's IP address
     10) Destination IP: Recipients IP Address
-    11) Options: *****************
+    11) Options: Generally not used, but can contain extras like timestamp
     12) Data: The higher level protocol header and associated data being sent
         through IP.
 
