@@ -1,12 +1,28 @@
-NETID:  <your netid here>
+NETID:  jfw222
 
 Describe the contents of an IP packet and for each field describe the purpose it serves.
 
-    <your answer>
+    1)  Version: of the protocol
+    2)  IHL: how long the header will be
+    3)  QoS: *******************************
+    4)  Length: total length of the IP packet header & data inclusive
+    5)  Identifier: unique identifiers for fragments of a single IP datagram
+        such as flags and offset
+    6)  TTL: How many hops the packet has left before a router drops it to
+        prevent it from circulating forever
+    7)  Protocol: The "Application Layer" protocol that sits above IP like TCP
+    8)  Checksum: The value that indicates if the integrity of the IP Packet
+        header is correct
+    9)  Source IP: Sender's IP address
+    10) Destination IP: Recipients IP Address
+    11) Options: Generally not used, but can contain extras like timestamp
+    12) Data: The higher level protocol header and associated data being sent
+        through IP.
 
 Describe the general operation of the BGP protocol.
 
-    <your answer>
+    The Border Gateway Protocol serves to bridge the gap between various AS
+    (Autonomous Systems). Different sections of the internet exist,
 
 Describe why the ethernet protocol necessitates a minimum packet size.
 
@@ -47,34 +63,43 @@ What is a DNS local resolver?
 
 What purpose does the ACK # serve in TCP?
 
-    <your answer>
+    <your answer> * Provides the next byte of data that the other machine is waiting for
 
 What purpose does the destination port number serve in UDP?
 
-    <your answer>
+    <your answer> * sending to correct process
 
 Why does UDP include a checksum? Wouldn't the end-to-end argument
 require that all checksums be performed at the application level, and
 hence argue that UDP and TCP elide such additional checksums in the
 network stack?
 
-    <your answer>
+    UDP doesn't care about details, but it does assure integrity.
+    By performing a check at each stage, errors are caught sooner, increasing
+    the efficiency of the protocol.
 
 Imagine that a mail server on host A has just received a TCP/IP SYN
 packet destined for it. Describe everything that happens to this packet
 from the point of its reception by the network interface card to the
 point of its delivery to the mail server.
 
-    <your answer>
-
- 
+    HERE
 
 In IPv6, why do routers not fragment packets? Then how does IPv6 deal with the issue
 of Minimum Transmission Unit (MTU)?
 
-    <your answer>
+    IPv6 routers do not fragment packets due to efficiency. It is far more
+    efficient for the source to handle the resizing of the information. IPv6
+    deals with MTUs in one of two ways:
+        1) Use the default MTU of 1280 which all physical networks can handle.
+        2) Use "Path MTU Discovery" - a node sends messages over the route it
+        will use to determine how large it can make the packets.
 
 What is the difference between a web proxy and a vpn? When would it be advantageous 
 to use a proxy instead of a vpn?
 
-    <your answer>
+    Proxy is better for keeping cost down. Proxies can also be used to fake
+    locational data. A proxy simply acts as an intermediary for requests. A VPN
+    is actually an encrypted virtual tunnel over the telecom structure, granting
+    a user secure access. VPNs are also generally restricted to one computer per
+    connection, where a proxy can support many.

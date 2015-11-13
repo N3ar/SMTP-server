@@ -1,8 +1,126 @@
 # SMTP-server
 Miniproject 3: Create a simple SMTP server in Python.
-
 ===============================================================================
+Steps:
+----------------
 
+ - Change server so that each incoming connection is passed to *thread pool*
+   + Single main thread acts as the producer of incomming threads
+   + Pool (constant number) acts as consumers
+     NOTE: Thread pool can onse only threading library (not thread-safe queue
+     or multiprocessing module)
+ - SMTP is line-oriented so each line ends with '\r\n'
+   + Other than the message body, each line triggers a response from the server
+ - Number codes (status codes) can be found below
+   + 200-299 range indicates acceptable progression through mail delivery
+   + 500-599 range indicates errors
+   + 400-499 range indicates timeouts
+   + 300-399 range indicates alert conditions (ie. mail server changing input
+     collection mode --> now seeking input until "<CR><LF>.<CR><LF>" marker
+   + Conventions broken out below
+   + In the event of an error, the server delivers a message, *but does not
+     prevent future commands from succeeding* (see below)
+ - Email should be saved on disk in a file named `mailbox`
+   + SMTP Server should create this file in the current directory on launch
+   + It should erasing all current contents
+   + Each email should be appended to this file so that the integrity and
+     order of the emails is preserved *example below*
+ - A client may send multiple RCPT TO commands during a single message
+   + This causes a message to be delivered once, assigned a single message ID,
+     appear once in the mailbox, and have multiple "To:" lines
+ - Test your server by connecting to it with a telnet client
+   + Run your server on a linux machine, and on the same machine run "telnet
+     localhost *portnum*"
+ - Once client and server function, modify the provided client to thoroughly
+   test your server program
+   + You should create a version called 'multiclient.py' which opens 32
+     connections at once, and psuedorandomly generates SMTP commands
+   + A complete implementation will randomly vary the client-provided
+     information (hostnames, emails, and data) and will follow the core
+     protocol in the normal case
+   + To test error conditions, 'multiclient.py' should randomly decide to
+     deviate from the protocol and issue a command that results in an error, it
+     should be able to detect that your server sends the appropriate response
+     *Please see the included 'multiclient.py' skeleton for more information*
+
+Details:
+-----------------
+
+Here are some things you should keep in mind as you build your SMTP server:
+ - Your thread pool should contain 32 threads.
+ - Each thread should finish one connection before moving on to the next.
+ - The producer (which calls accept on the listening socket) should not accept
+   connections at a faster rate than the thread pool is processing them.  It is
+   better to let them become backlogged in the OS than to accept them and let
+   them sit on a queue.  Your implementation must behave in this fashion.
+ - Emails should be assigned a unique number, indicating their order of
+   delivery.  This number should reflect the order of the emails in the
+   mailbox.  For consistency, the first message is always 1, and every
+   subsequent message is <number of previously delivered message> + 1.
+ - You'll need to build at least one monitor to enable your multi-threaded
+   behavior to adhere to our spec.  Servers which do not implement proper
+   monitors will not receive full credit.
+ - We will test on the Linux networking stack using Python 2.7.  Although
+   Windows provides a sockets API that Python wraps quite nicely, Python does
+   not do anything to smooth over compatibility issues stemming from Windows
+   not being Linux.  It is almost guaranteed that code developed exclusively
+   for Windows will not work on Linux without a little effort.  Please be aware
+   of this before you submit.
+ - It is perfectly acceptable, and encouraged, to cross-test your SMTP server
+   with other students.  The procedure for doing so is to both log into the
+   CSUGLab machines and spawn your server on a port that is known to both you
+   and others.  At no time should you be in possesion of, or have access to,
+   the source code of another student.
+   
+Mailbox Backup
+------------
+
+ - Create a separate "backup" thread whose job is to create a backup of the
+   mailbox
+   + This means copying the current `mailbox` file to a separate location and
+     emptying `mailbox`
+   + Messages should be backed up in groups of 32
+   + In an example with 64 messages, thread will create file `mailbox.33-64`
+     and then truncate `mailbox`
+   + After this thread completes, the current directory will contain the files
+     `mailbox`, `mailbox.1-32`, and `mailbox.33-64`
+   + *DOES THIS MEANS THAT MAILBOX IS EMPTY OR DOES IT HAVE 64 MESSAGES STILL?*
+   + The backup process should not be affected if another thread tries to
+     deliver a message --> The thread that tries to deliver a new message will
+     wait for the backup process to complete before writing its message.
+
+Submission Instructions
+-----------------------
+
+Your submission should include at least the following files (named in exactly
+this fashion):
+
+README.txt:
+    A plain-text, ASCII file containing your netid, and a description of all
+    problems you know about that exist in your implementation.  As usual, we
+    simply use this to save us time, and will give your code the same
+    attention that every submission receives.
+
+QUESTIONS.txt:
+    A plain-text, ASCII file containing your netid, and answers to every
+    question contained in the distributed QUESTIONS.txt.
+
+server.py:
+    This should be your server implementation.  If run with no arguments,
+    `server.py` should bind to '127.0.0.1' on port 8765.  Messages should be
+    saved to the `mailbox` file in the directory in which server.py is
+    launched.
+
+multiclient.py:
+    This is the multiclient as described in this README.  If run with no
+    arguments, `multiclient.py` should connect to '127.0.0.1' on port 8765 and
+    begin the stress test.  The stress test should run through every error case
+    in the protocol, and possibly other error cases that you yourself conceive.
+    Operations should be relatively fast.  We will give 1 minute for all 1,000
+    operations, requiring your `multiclient.py` to sustain 17 ops/sec.
+
+Initial documentation:
+===============================================================================
 Email is the backbone of modern-day communication.  In this assignment you will
 be building a multi-threaded mail server that supports basic features of the
 SMTP mail transfer protocol.  Along the way you'll get a taste of
