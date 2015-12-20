@@ -66,13 +66,10 @@ class ThreadPool:
 
 # each SMTP handling thread
 class SMTPHandler(Thread):
-    def __init__(self, num):
+    def __init__(self):
         # Global variables
         global workerLock
         global socketInUse
-
-        # Local variable
-        self.num = num
 
         # Start SMTP Handler thread
         Thread.__init__(self)
